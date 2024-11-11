@@ -9,19 +9,79 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Create a function to handle inserts
-const handleInserts = (payload) => {
-  console.log("Change received!", payload);
+const checkAggregates = async () => {
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("feedback")
+    .select("*")
+    .gte("created_date", oneDayAgo);
+
+  if (error) {
+    console.error("Error fetching feedback:", error);
+    return;
+  }
+
+  // Group feedback by shop_id and gender
+  const groupedFeedback = data.reduce((acc, feedback) => {
+    const key = `${feedback.shop_id}-${feedback.gender}`;
+    if (!acc[key]) {
+      acc[key] = {
+        shop_id: feedback.shop_id,
+        gender: feedback.gender,
+        counts: {
+          bin_full: 0,
+          dirty_basin: 0,
+          dirty_toilet_bowl: 0,
+          dirty_mirror: 0,
+          no_more_soap: 0,
+          no_more_toilet_paper: 0,
+          toilet_clogged: 0,
+          wet_dirty_floor: 0,
+        },
+      };
+    }
+
+    // Count issues for this shop-gender combination
+    Object.keys(acc[key].counts).forEach((issue) => {
+      if (feedback[issue]) acc[key].counts[issue]++;
+    });
+
+    return acc;
+  }, {});
+
+  // Check thresholds for each shop-gender combination
+  Object.values(groupedFeedback).forEach(({ shop_id, gender, counts }) => {
+    Object.entries(counts).forEach(([issue, count]) => {
+      if (count >= 3) {
+        console.log(
+          `Alert: ${issue} has been reported ${count} times in the last 24 hours for shop_id: ${shop_id}, gender: ${gender}`
+        );
+      }
+    });
+  });
 };
 
-// Listen to inserts
-supabase
+// Helper function to wait until subscription state is "joined"
+const waitForSubscription = async (subscription) => {
+  while (subscription.state !== "joined") {
+    await new Promise((resolve) => setTimeout(resolve, 100)); // Wait for 100ms
+  }
+  console.log("Subscription joined");
+};
+
+// Define the channel and subscribe to it
+const channel = supabase
   .channel("feedback")
   .on(
     "postgres_changes",
     { event: "INSERT", schema: "public", table: "feedback" },
-    handleInserts
-  )
-  .subscribe();
+    checkAggregates
+  );
+
+// Await the subscription and wait for it to be fully subscribed
+const subscription = await channel.subscribe();
+await waitForSubscription(subscription);
 
 const { error } = await supabase.from("feedback").insert({
   shop_id: 1,
@@ -36,4 +96,8 @@ const { error } = await supabase.from("feedback").insert({
   wet_dirty_floor: true,
 });
 
-console.log(error);
+if (error) {
+  console.error("Error inserting feedback:", error);
+} else {
+  console.log("Feedback inserted successfully");
+}
