@@ -1,12 +1,15 @@
 // Initialize the JS client
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import { sendWhatsappMessage } from "./twilio.js";
 
 dotenv.config();
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const shopWhatsappNumber = "whatsapp:+6581366963";
 
 // Create a function to handle inserts
 const checkAggregates = async () => {
@@ -50,10 +53,13 @@ const checkAggregates = async () => {
     return acc;
   }, {});
 
+  console.log(groupedFeedback);
+
   // Check thresholds for each shop-gender combination
   Object.values(groupedFeedback).forEach(({ shop_id, gender, counts }) => {
     Object.entries(counts).forEach(([issue, count]) => {
       if (count >= 3) {
+        sendWhatsappMessage(shopWhatsappNumber, "6:19pm", "Dirty Basin");
         console.log(
           `Alert: ${issue} has been reported ${count} times in the last 24 hours for shop_id: ${shop_id}, gender: ${gender}`
         );
