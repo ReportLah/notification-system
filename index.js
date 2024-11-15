@@ -57,8 +57,9 @@ const checkAggregates = async () => {
 
   // Check thresholds for each shop-gender combination
   Object.values(groupedFeedback).forEach(({ shop_id, gender, counts }) => {
-    Object.entries(counts).forEach(([issue, count]) => {
+    Object.entries(counts).forEach(async ([issue, count]) => {
       if (count >= 3) {
+        await sleep(1000);
         sendWhatsappMessage(shopWhatsappNumber, "6:19pm", "Dirty Basin");
         console.log(
           `Alert: ${issue} has been reported ${count} times in the last 24 hours for shop_id: ${shop_id}, gender: ${gender}`
@@ -68,10 +69,13 @@ const checkAggregates = async () => {
   });
 };
 
+const sleep = async (ms) =>
+  await new Promise((resolve) => setTimeout(resolve, ms)); // Wait for 100ms
+
 // Helper function to wait until subscription state is "joined"
 const waitForSubscription = async (subscription) => {
   while (subscription.state !== "joined") {
-    await new Promise((resolve) => setTimeout(resolve, 100)); // Wait for 100ms
+    await sleep(100); // Wait for 100ms
   }
   console.log("Subscription joined");
 };

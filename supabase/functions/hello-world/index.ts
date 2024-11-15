@@ -1,17 +1,15 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
-
-// Setup type definitions for built-in Supabase Runtime APIs
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-
 // Initialize the JS client
 import { createClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
+import { sendWhatsappMessage } from "./twilio.js";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") as string;
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") as string;
+dotenv.config();
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const shopWhatsappNumber = "whatsapp:+6581366963";
 
 // Create a function to handle inserts
 const checkAggregates = async () => {
@@ -55,26 +53,19 @@ const checkAggregates = async () => {
     return acc;
   }, {});
 
-  type GroupedFeedback = {
-    shop_id: number;
-    gender: string;
-    counts: {
-      [key: string]: number;
-    };
-  };
+  console.log(groupedFeedback);
 
   // Check thresholds for each shop-gender combination
-  Object.values(groupedFeedback as Record<string, GroupedFeedback>).forEach(
-    ({ shop_id, gender, counts }) => {
-      Object.entries(counts).forEach(([issue, count]) => {
-        if (count >= 3) {
-          console.log(
-            `Alert: ${issue} has been reported ${count} times in the last 24 hours for shop_id: ${shop_id}, gender: ${gender}`
-          );
-        }
-      });
-    }
-  );
+  Object.values(groupedFeedback).forEach(({ shop_id, gender, counts }) => {
+    Object.entries(counts).forEach(([issue, count]) => {
+      if (count >= 3) {
+        sendWhatsappMessage(shopWhatsappNumber, "6:19pm", "Dirty Basin");
+        console.log(
+          `Alert: ${issue} has been reported ${count} times in the last 24 hours for shop_id: ${shop_id}, gender: ${gender}`
+        );
+      }
+    });
+  });
 };
 
 // Helper function to wait until subscription state is "joined"

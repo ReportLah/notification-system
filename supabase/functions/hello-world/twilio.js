@@ -7,18 +7,23 @@ dotenv.config();
 // and set the environment variables. See http://twil.io/secure
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
+const contentSid = process.env.CONTENT_SID;
+const messagingServiceSid = process.env.MESSAGING_SERVICE_SID;
+const reportlahWhatsappNumber = process.env.REPORTLAH_WHATSAPP_NUMBER;
 const client = twilio(accountSid, authToken);
 
-async function createMessage() {
+export async function sendWhatsappMessage(
+  shopWhatsappNumber,
+  alertTime,
+  alertReason
+) {
   const message = await client.messages.create({
-    contentSid: "HX6fd76d4441352be043115aaa9648ef7c",
-    contentVariables: JSON.stringify({ 1: "6:19PM", 2: "Dirty Basin" }),
-    messagingServiceSid: "MG0e6b44dc5b9092d94d61b77fb84ae919",
-    from: "whatsapp:+6598698399",
-    to: "whatsapp:+6580336612",
+    contentSid,
+    contentVariables: JSON.stringify({ 1: alertTime, 2: alertReason }),
+    messagingServiceSid,
+    from: reportlahWhatsappNumber,
+    to: shopWhatsappNumber,
   });
 
   console.log(message);
 }
-
-createMessage();
