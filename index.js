@@ -9,7 +9,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const ALERT_COUNT_THRESHOLD = 12;
+const ALERT_COUNT_THRESHOLD = 60;
 const reasonMap = {
   bin_full: "bin full",
   dirty_basin: "sink dirty",
@@ -21,6 +21,17 @@ const reasonMap = {
   wet_dirty_floor: "floor wet",
 };
 
+const listOfReasons = [
+  "bin_full",
+  "dirty_basin",
+  "dirty_toilet_bowl",
+  "dirty_mirror",
+  "no_more_soap",
+  "no_more_toilet_paper",
+  "toilet_clogged",
+  "wet_dirty_floor",
+];
+
 const { data, err } = await supabase.from("shop").select("*");
 const shopData = data;
 if (err) {
@@ -30,73 +41,46 @@ if (err) {
 }
 
 // Create a function to handle inserts
-const checkAggregates = async () => {
+const checkAggregates = async (payload) => {
+  console.log(payload);
+
+  if (payload.eventType !== "INSERT" || payload.table !== "feedback") return;
+
+  const newFeedback = payload.new;
+  const reason = listOfReasons.find((reason) => newFeedback[reason] === true);
+
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
+  console.log(reason);
   const { data, error } = await supabase
     .from("feedback")
     .select("*")
+    .eq("shop_id", newFeedback.shop_id)
+    .eq(reason, true)
     .gte("created_date", oneDayAgo);
+  const numFeedbacksForShopReason = data.length;
 
-  const feedbackData = data;
-  // console.log("Feedback data:", feedbackData);
-  if (error) {
-    console.error("Error fetching feedback:", error);
-    return;
+  // Only send the alert if the count is equal to the threshold, no further messages if it exceeds the threshold
+  if (numFeedbacksForShopReason === ALERT_COUNT_THRESHOLD) {
+    const currentTime = new Date();
+    const hours = currentTime.getHours().toString().padStart(2, "0");
+    const minutes = currentTime.getMinutes().toString().padStart(2, "0");
+    const timeString = `${hours}:${minutes}`;
+
+    const shopName = shopData.find(
+      (shop) => shop.id === newFeedback.shop_id
+    ).name;
+
+    const reasonString = reasonMap[reason];
+
+    sendWhatsappMessage(
+      timeString,
+      shopName,
+      reasonString,
+      numFeedbacksForShopReason
+    );
+    await sleep(1000);
   }
-
-  // Group feedback by shop_id and gender
-  const groupedFeedback = feedbackData.reduce((acc, feedback) => {
-    const key = `${feedback.shop_id}-${feedback.gender}`;
-    if (!acc[key]) {
-      acc[key] = {
-        shop_id: feedback.shop_id,
-        gender: feedback.gender,
-        counts: {
-          bin_full: 0,
-          dirty_basin: 0,
-          dirty_toilet_bowl: 0,
-          dirty_mirror: 0,
-          no_more_soap: 0,
-          no_more_toilet_paper: 0,
-          toilet_clogged: 0,
-          wet_dirty_floor: 0,
-        },
-      };
-    }
-
-    // Count issues for this shop-gender combination
-    Object.keys(acc[key].counts).forEach((issue) => {
-      if (feedback[issue]) acc[key].counts[issue]++;
-    });
-
-    return acc;
-  }, {});
-
-  console.log(groupedFeedback);
-
-  // Check thresholds for each shop-gender combination
-  Object.values(groupedFeedback).forEach(({ shop_id, gender, counts }) => {
-    Object.entries(counts).forEach(async ([reason, count]) => {
-      if (reason !== "bin_full") return;
-      if (count >= ALERT_COUNT_THRESHOLD) {
-        await sleep(1000);
-
-        const currentTime = new Date();
-        const hours = currentTime.getHours().toString().padStart(2, "0");
-        const minutes = currentTime.getMinutes().toString().padStart(2, "0");
-        const timeString = `${hours}:${minutes}`;
-
-        const shopName = shopData.find((shop) => shop.id === shop_id).name;
-
-        const reasonString = reasonMap[reason];
-
-        console.log(shopName);
-
-        sendWhatsappMessage(timeString, shopName, reasonString, count);
-      }
-    });
-  });
 };
 
 const sleep = async (ms) =>
@@ -122,22 +106,3 @@ const channel = supabase
 // Await the subscription and wait for it to be fully subscribed
 const subscription = await channel.subscribe();
 await waitForSubscription(subscription);
-
-// const { error } = await supabase.from("feedback").insert({
-//   shop_id: 1,
-//   gender: "male",
-//   bin_full: true,
-//   dirty_basin: true,
-//   dirty_toilet_bowl: true,
-//   dirty_mirror: true,
-//   no_more_soap: true,
-//   no_more_toilet_paper: true,
-//   toilet_clogged: true,
-//   wet_dirty_floor: true,
-// });
-
-// if (error) {
-//   console.error("Error inserting feedback:", error);
-// } else {
-//   console.log("Feedback inserted successfully");
-// }

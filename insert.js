@@ -11,13 +11,13 @@ const { error } = await supabase.from("feedback").insert({
   shop_id: 1,
   gender: "male",
   bin_full: true,
-  dirty_basin: true,
-  dirty_toilet_bowl: true,
-  dirty_mirror: true,
-  no_more_soap: true,
-  no_more_toilet_paper: true,
-  toilet_clogged: true,
-  wet_dirty_floor: true,
+  dirty_basin: false,
+  dirty_toilet_bowl: false,
+  dirty_mirror: false,
+  no_more_soap: false,
+  no_more_toilet_paper: false,
+  toilet_clogged: false,
+  wet_dirty_floor: false,
 });
 
 if (error) {
@@ -25,4 +25,3 @@ if (error) {
 } else {
   console.log("Feedback inserted successfully");
 }
-
