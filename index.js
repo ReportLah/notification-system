@@ -9,7 +9,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const ALERT_COUNT_THRESHOLD = 60;
+const ALERT_COUNT_THRESHOLD = 3;
 const reasonMap = {
   bin_full: "bin full",
   dirty_basin: "sink dirty",
@@ -32,6 +32,11 @@ const listOfReasons = [
   "wet_dirty_floor",
 ];
 
+const shopPhoneNumberMap = {
+  1: "whatsapp:+6581366963",
+  2: "whatsapp:+6580336612",
+};
+
 const { data, err } = await supabase.from("shop").select("*");
 const shopData = data;
 if (err) {
@@ -51,17 +56,23 @@ const checkAggregates = async (payload) => {
 
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  console.log(reason);
   const { data, error } = await supabase
     .from("feedback")
     .select("*")
     .eq("shop_id", newFeedback.shop_id)
     .eq(reason, true)
     .gte("created_date", oneDayAgo);
+
+  if (error) {
+    console.error("Error fetching feedback data:", error);
+  }
+
   const numFeedbacksForShopReason = data.length;
+  console.log(numFeedbacksForShopReason);
 
   // Only send the alert if the count is equal to the threshold, no further messages if it exceeds the threshold
-  if (numFeedbacksForShopReason === ALERT_COUNT_THRESHOLD) {
+  if (numFeedbacksForShopReason % ALERT_COUNT_THRESHOLD === 0) {
+    const whatsappNumber = shopPhoneNumberMap[newFeedback.shop_id];
     const currentTime = new Date();
     const hours = currentTime.getHours().toString().padStart(2, "0");
     const minutes = currentTime.getMinutes().toString().padStart(2, "0");
@@ -73,7 +84,8 @@ const checkAggregates = async (payload) => {
 
     const reasonString = reasonMap[reason];
 
-    sendWhatsappMessage(
+    await sendWhatsappMessage(
+      whatsappNumber,
       timeString,
       shopName,
       reasonString,
