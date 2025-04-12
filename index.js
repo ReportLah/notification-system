@@ -32,19 +32,6 @@ const listOfReasons = [
   "wet_dirty_floor",
 ];
 
-const shopPhoneNumberMap = {
-  1: "whatsapp:+6581366963",
-  2: "whatsapp:+6580336612",
-};
-
-const { data, err } = await supabase.from("shop").select("*");
-const shopData = data;
-if (err) {
-  console.error("Error fetching shop data:", err);
-} else {
-  // console.log("Shop data:", shopData);
-}
-
 // Create a function to handle inserts
 const checkAggregates = async (payload) => {
   console.log(payload);
@@ -68,26 +55,32 @@ const checkAggregates = async (payload) => {
   }
 
   const numFeedbacksForShopReason = data.length;
-  console.log(numFeedbacksForShopReason);
 
   // Only send the alert if the count is equal to the threshold, no further messages if it exceeds the threshold
   if (numFeedbacksForShopReason % ALERT_COUNT_THRESHOLD === 0) {
-    const whatsappNumber = shopPhoneNumberMap[newFeedback.shop_id];
     const currentTime = new Date();
     const hours = currentTime.getHours().toString().padStart(2, "0");
     const minutes = currentTime.getMinutes().toString().padStart(2, "0");
     const timeString = `${hours}:${minutes}`;
 
-    const shopName = shopData.find(
-      (shop) => shop.id === newFeedback.shop_id
-    ).name;
+    // Replace the find operation with direct Supabase query
+    const { data: shopData, error: shopError } = await supabase
+      .from("shop")
+      .select("*")
+      .eq("id", newFeedback.shop_id)
+      .single();
+
+    if (shopError) {
+      console.error("Error fetching shop data:", shopError);
+      return;
+    }
 
     const reasonString = reasonMap[reason];
 
     await sendWhatsappMessage(
-      whatsappNumber,
+      `whatsapp:+65${shopData.contact}`,
       timeString,
-      shopName,
+      shopData.name,
       reasonString,
       numFeedbacksForShopReason
     );
